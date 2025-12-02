@@ -1,0 +1,27 @@
+# --- Virtual Environments ---
+# Prevents the specific folder shown in your screenshot
+backend/venv/
+venv/
+env/
+
+# --- Python ---
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Django ---
+# Local database (Shown in your screenshot - do not push this!)
+*.sqlite3
+db.sqlite3
+
+# Local settings (often used for secrets)
+local_settings.py
+
+# --- Environment Variables ---
+.env
+
+# --- OS & Editor ---
+.DS_Store
+.vscode/
+.idea/

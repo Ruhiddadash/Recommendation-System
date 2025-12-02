@@ -1,0 +1,266 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Movie Recommendation System</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+
+    <style>
+        /* Essential styles for the JS-generated content */
+        .hidden { display: none; }
+        .movie-card, .recommendation-card {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: white;
+            width: 200px; /* Fixed width for grid */
+            display: inline-block;
+            vertical-align: top;
+        }
+        .movie-card:hover { transform: translateY(-5px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .movie-card.selected { border: 2px solid #3498db; background-color: #e3f2fd; }
+        .movies-grid, .recommendations-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+        }
+        .btn-recommend {
+            padding: 12px 24px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .btn-recommend:disabled { background-color: #ccc; }
+        .selected-section{
+            justify-content: center;
+            align-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <!-- HEADER -->
+        <div class="main-header">
+            <h1 class="main-title">🎬 Movie Recommendations</h1>
+            <div class="user-info">
+                <span class="user-name">Welcome, <span id="currentUser">User</span>!</span>
+                <button class="btn-logout" onclick="logoutUser()">Logout</button>
+            </div>
+        </div>
+
+        <!-- MOVIE SELECTION SECTION -->
+        <div class="movies-section">
+            <h2 class="section-title">Select Your Favorite Movies (Choose up to 4)</h2>
+            <p style="text-align: center; color: #666; margin-bottom: 20px;">
+                Search and click on movies you've enjoyed to get personalized recommendations
+            </p>
+
+            <!-- Algorithm Selector -->
+            <div style="text-align: center; margin-bottom: 30px;">
+                <label style="margin-right: 15px; color: #333; font-weight: 500;">Recommendation Algorithm:</label>
+                <select id="algorithmSelect" onchange="changeAlgorithm()" style="padding: 8px 12px; border: 2px solid #e1e1e1; border-radius: 5px; background: white;">
+                    <option value="content_based">Content-Based</option>
+                    <option value="collaborative">Collaborative Filtering</option>
+                </select>
+            </div>
+
+            <div style="text-align:center; margin-bottom:20px;">
+                <input 
+                    type="text" 
+                    id="movieSearchInput"
+                    placeholder="Search movies..."
+                    oninput="searchMovies()"
+                    style="width: 60%; padding: 10px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px;"
+                />
+            </div>
+
+
+            <!-- Movies Grid -->
+            <div class="movies-grid" id="moviesGrid">
+                <div style="grid-column: 1 / -1; text-align: center; padding: 40px;">
+                    <div style="font-size: 2rem; margin-bottom: 10px;">🎬</div>
+                    <p>Loading movies from database...</p>
+                </div>
+            </div>
+
+            <div class="movies-wrapper">
+
+            <!-- SELECTED MOVIES SECTION -->
+            <div style="text-align: center; margin-top: 30px;" class="selected-section" id="selectedSection">
+                    <div class="selected-title">🎯 Selected Movies</div>
+                    <div id="selectedMoviesGrid"></div>
+                </div>
+
+                <!-- NORMAL GRID -->
+                <div id="moviesGrid"></div>
+            </div>
+
+
+            <!-- Button -->
+            <div style="text-align: center; margin-top: 30px;">
+                <div id="selectionInfo" style="margin-bottom: 15px; color: #666;">
+                    Select movies to get recommendations
+                </div>
+                <button class="btn btn-recommend" id="getRecommendationsBtn" onclick="getRecommendations()">
+                    Get My Recommendations
+                </button>
+            </div>
+            
+        </div>
+         
+        <!-- RECOMMENDATION RESULTS -->
+        <div class="recommendations-section hidden" id="recommendationsSection">
+            <h2 class="section-title">🌟 Recommended For You</h2>
+            <div id="recommendationInfo" style="text-align: center; margin-bottom: 25px; color: #666;"></div>
+            <div class="recommendations-grid" id="recommendationsGrid"></div>
+
+            <!-- Feedback buttons -->
+            <div style="text-align: center; margin-top: 40px; padding: 20px; background: #f8f9ff; border-radius: 10px;">
+                <h3 style="color: #333; margin-bottom: 15px;">How did we do?</h3>
+                <p style="color: #666; margin-bottom: 20px;">Your feedback helps us improve our recommendations</p>
+                <div id="feedbackButtons" style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                    <button onclick="provideFeedback('excellent')" class="btn" style="background: #2ed573; color: white;">😍 Excellent</button>
+                    <button onclick="provideFeedback('good')" class="btn" style="background: #ffa502; color: white;">😊 Good</button>
+                    <button onclick="provideFeedback('okay')" class="btn" style="background: #ff6b6b; color: white;">😐 Okay</button>
+                    <button onclick="provideFeedback('poor')" class="btn" style="background: #ff4757; color: white;">😞 Poor</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- USER STATS -->
+        <div id="statsSection" class="hidden" style="margin-top: 40px; padding: 40px; border-top: 2px solid #e1e1e1;">
+            <h2 class="section-title">📊 Your Movie Stats</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                <div style="background: linear-gradient(45deg, #667eea, #764ba2); color: white; padding: 20px; border-radius: 10px; text-align: center;">
+                    <h3 style="margin-bottom: 10px;">Movies Selected</h3>
+                    <p id="selectedCount" style="font-size: 2rem; font-weight: bold;">0</p>
+                </div>
+                <div style="background: linear-gradient(45deg, #ff6b6b, #ee5a24); color: white; padding: 20px; border-radius: 10px; text-align: center;">
+                    <h3 style="margin-bottom: 10px;">Recommendations</h3>
+                    <p id="recommendationCount" style="font-size: 2rem; font-weight: bold;">0</p>
+                </div>
+                <div style="background: linear-gradient(45deg, #2ed573, #17a085); color: white; padding: 20px; border-radius: 10px; text-align: center;">
+                    <h3 style="margin-bottom: 10px;">Diversity Score</h3>
+                    <p id="diversityScore" style="font-size: 2rem; font-weight: bold;">-</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- JS FILES (LOAD ORDER IS IMPORTANT!) -->
+    <script src="{% static 'js/main.js' %}"></script>
+    <script src="{% static 'js/recommendations.js' %}"></script>
+
+    <script>
+        // Do not redeclare "let recommendationUI". Use var to avoid conflicts.
+        var recommendationUI;
+
+        document.addEventListener("DOMContentLoaded", async function () {
+
+            if (!MovieApp.checkAuth()) return;
+
+            // Movies first load from main.js
+            await loadMovies();
+
+            // Initialize recommendation system with real movies
+            recommendationUI = RecommendationSystem.initRecommendationSystem(movies);
+
+            MovieApp.init();
+
+            document.getElementById("statsSection").classList.remove("hidden");
+        });
+
+        /* --- RECOMMENDATION FETCH --- */
+        async function getRecommendations() {
+
+            const accessToken = sessionStorage.getItem("accessToken");
+            if (!accessToken) {
+                alert("Please login again");
+                window.location.href = "/api/accounts/login-page/";
+                return;
+            }
+
+            if (selectedMovies.length === 0) {
+                alert("Pick at least 1 movie!");
+                return;
+            }
+
+            const response = await fetch("/api/movies/recommend/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({
+                    movie_id: selectedMovies[0]
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                displayRecommendations(data);
+            } else {
+                alert("Recommendation failed");
+                console.error(data);
+            }
+        }
+
+        /* --- SHOW RECOMMENDATIONS --- */
+        function displayRecommendations(list) {
+            const grid = document.getElementById("recommendationsGrid");
+            grid.innerHTML = "";
+
+            list.forEach(movie => {
+                const div = document.createElement("div");
+                div.className = "recommendation-card";
+
+                div.innerHTML = `
+                    <h3>${movie.title}</h3>
+                    <p>${movie.genres}</p>
+                `;
+                grid.appendChild(div);
+            });
+
+            document.getElementById("recommendationsSection").classList.remove("hidden");
+        }
+
+        /* --- ALGORITHM SWITCH --- */
+        function changeAlgorithm() {
+            const alg = document.getElementById("algorithmSelect").value;
+
+            if (recommendationUI && recommendationUI.setAlgorithm(alg)) {
+                MovieApp.showAlert(`Switched to ${alg} algorithm`, "success");
+                document.getElementById("recommendationsSection").classList.add("hidden");
+            }
+        }
+
+        /* --- FEEDBACK --- */
+        function provideFeedback(rating) {
+            const ratingMap = { excellent: 5, good: 4, okay: 3, poor: 1 };
+            const first = document.querySelector(".recommendation-card h3");
+
+            if (!first) return;
+
+            recommendationUI.provideFeedback(first.textContent, ratingMap[rating]);
+            MovieApp.showAlert("Thank you for your feedback!", "success");
+            document.getElementById("feedbackButtons").style.display = "none";
+        }
+
+        // Expose selectMovie to HTML
+        window.selectMovie = selectMovie;
+
+    </script>
+</body>
+</html>

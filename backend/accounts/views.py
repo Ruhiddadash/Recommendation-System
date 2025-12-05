@@ -14,7 +14,6 @@ from .serializers import RegisterSerializer, LoginSerializer
 
 from django.contrib.auth import logout
 
-from django.contrib.auth import logout
 from django.shortcuts import redirect
 
 class LogoutView(APIView):
@@ -45,6 +44,8 @@ class RegisterView(APIView):
         return Response({"success": False, "errors": serializer.errors}, status=400)
 
 
+from django.contrib.auth import login
+
 @method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):
     def post(self, request):
@@ -54,6 +55,10 @@ class LoginView(APIView):
             return Response({"success": False, "message": "Invalid credentials"}, status=400)
 
         user = serializer.validated_data['user']
+
+        # --- NEW: login user into Django session ---
+        login(request, user)
+
         refresh = RefreshToken.for_user(user)
 
         return Response({
@@ -66,6 +71,13 @@ class LoginView(APIView):
             "access": str(refresh.access_token),
             "refresh": str(refresh)
         })
+    
+class LogoutView(APIView):
+    def get(self, request):
+        logout(request)
+        response = redirect('/api/accounts/login-page/')
+        response.delete_cookie('sessionid')  # force logout
+        return response
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -87,6 +99,8 @@ from django.views import View
 
 class LoginPageView(View):
     def get(self, request):
+        if request.user.is_authenticated:
+            return redirect('/dashboard/')
         return render(request, "login.html")
 
 

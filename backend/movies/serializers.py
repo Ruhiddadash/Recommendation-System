@@ -6,8 +6,15 @@ class RecommendationRequestSerializer(serializers.Serializer):
     )
     top_k = serializers.IntegerField(required=False, default=16)
 
+
 class MovieRecommendationSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     title = serializers.CharField()
-    genres = serializers.CharField(allow_null=True, required=False)
-    score = serializers.FloatField(required=False)  # optional relevance score
+    year = serializers.IntegerField(allow_null=True)
+    genres = serializers.CharField(allow_blank=True)
+
+    predicted_rating = serializers.FloatField()
+    badge = serializers.CharField()
+    reason = serializers.CharField()
+    score = serializers.FloatField()
+

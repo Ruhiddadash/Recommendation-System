@@ -185,4 +185,25 @@
     .auth-right {
         padding: 20px;
     }
+
+.input-group {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.toggle-pass-btn {
+    position: absolute;
+    right: 10px;
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.toggle-pass-btn svg {
+    pointer-events: none;
+}
 }

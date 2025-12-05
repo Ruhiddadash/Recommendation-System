@@ -1,15 +1,19 @@
+# accounts/urls.py
 from django.urls import path
-from .views import RegisterView, LoginView, WhoAmIView, LoginPageView, RegisterPageView, LogoutView
+from .views import (
+    LoginView, RegisterView, LogoutView,
+    LoginPageView, RegisterPageView, WhoAmIView
+)
 
 urlpatterns = [
-    # API endpoints
-    path('register/', RegisterView.as_view()),
-    path('login/', LoginView.as_view()),
-    path('whoami/', WhoAmIView.as_view()),
+    path('login/', LoginView.as_view(), name='api_login'),
+    path('register/', RegisterView.as_view(), name='api_register'),
+    path('logout/', LogoutView.as_view(), name='logout'),
 
-    # HTML pages
-    path('login-page/', LoginPageView.as_view(), name="login_page"),
+    # HTML Pages
+    path('login-page/', LoginPageView.as_view(), name='login_page'),
     path('register-page/', RegisterPageView.as_view(), name='register_page'),
-    path("api/accounts/logout/", LogoutView.as_view(), name="logout"),
 
+    # Who am I API
+    path('whoami/', WhoAmIView.as_view(), name='who_am_i'),
 ]

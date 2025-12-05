@@ -39,12 +39,12 @@ function initAuth() {
 }
 
 // Check if user is already logged in
-function checkAlreadyLoggedIn() {
-    const userData = sessionStorage.getItem('currentUser');
-    if (userData) {
-        window.location.href = '/dashboard';
-    }
-}
+// function checkAlreadyLoggedIn() {
+//     const userData = sessionStorage.getItem('currentUser');
+//     if (userData) {
+//         window.location.href = '/dashboard';
+//     }
+// }
 
 // Setup form event listeners
 function setupFormListeners() {
@@ -61,6 +61,22 @@ function setupFormListeners() {
     
     // Add real-time validation
     setupRealTimeValidation();
+}
+
+function togglePassword(event) {
+    // If button clicked
+    const target = event.currentTarget.getAttribute("data-target");
+    const input = document.querySelector(`input[name="${target}"]`);
+
+    if (!input) return;
+
+    if (input.type === "password") {
+        input.type = "text";
+        event.currentTarget.innerHTML = "👁️‍🗨️"; // visual feedback
+    } else {
+        input.type = "password";
+        event.currentTarget.innerHTML = "👁️‍🗨️";
+    }
 }
 
 /// LOGIN

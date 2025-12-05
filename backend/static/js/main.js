@@ -95,10 +95,127 @@ function createMovieCard(movie) {
         <div class="movie-poster">🎬</div>
         <div class="movie-info">
             <div class="movie-title">${escapeHtml(movie.title)}</div>
+            <div class="movie-genre">${escapeHtml(movie.year)}</div>
             <div class="movie-genre">${escapeHtml(movie.genres || "Unknown Genre")}</div>
         </div>
     `;
     return movieCard;
+}
+
+// ==========================================
+// UI: Modal for Rating Requirement (NEW)
+// ==========================================
+function showRatingRequirementModal() {
+    // Remove if already exists
+    const existing = document.getElementById("ratingRequirementModal");
+    if (existing) existing.remove();
+
+    const modal = document.createElement("div");
+    modal.id = "ratingRequirementModal";
+    modal.innerHTML = `
+        <div class="rating-modal-backdrop"></div>
+        <div class="rating-modal-box">
+            <h2>🎯 Rate at least one selected movie</h2>
+            <p>
+                Collaborative filtering compares your ratings with users 
+                who liked movies similar to YOU. 
+                <br><br>
+                To get accurate results, please rate at least <b>one</b> 
+                of your selected movies before continuing.
+            </p>
+
+            <button id="rateNowBtn" class="btn btn-primary">⭐ Rate movies now</button>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Action button: scroll user to selected grid
+    document.getElementById("rateNowBtn").onclick = () => {
+        modal.remove();
+        document
+            .getElementById("selectedSection")
+            .scrollIntoView({ behavior: "smooth" });
+    };
+}
+
+// ==========================================
+// Check rating status from backend (NEW)
+// ==========================================
+async function checkSelectedMovieRatings() {
+    const token = sessionStorage.getItem("accessToken");
+    if (!token || selectedMovies.length === 0) return false;
+
+    try {
+        const res = await fetch("/api/movies/user-ratings/", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ selected_ids: selectedMovies })
+        });
+
+        const data = await res.json();
+        if (!res.ok) return false;
+
+        return data.has_rated_selected || false;
+    } catch (err) {
+        console.error("Error checking ratings:", err);
+        return false;
+    }
+}
+
+// Card for CONTENT-BASED recommendations (simple)
+function createContentBasedRecommendationCard(rec, index) {
+    const card = document.createElement('div');
+    card.className = 'recommendation-card';
+    card.style.animationDelay = `${index * 0.05}s`;
+
+    const scoreDisplay = (typeof rec.score === 'number')
+        ? `Match: ${(rec.score * 100).toFixed(0)}%`
+        : '';
+
+    card.innerHTML = `
+        <div class="movie-poster">🎞️</div>
+        <div class="rec-inner">
+            <h3 class="rec-title">${escapeHtml(rec.title)}</h3>
+            <p class="rec-genre">${escapeHtml(rec.year)}</p>
+            <p class="rec-genre">${escapeHtml(rec.genres || "")}</p>
+            ${scoreDisplay ? `<p class="rec-score">${scoreDisplay}</p>` : ""}
+        </div>
+    `;
+
+    return card;
+}
+
+// Card for COLLABORATIVE FILTERING recommendations (with trust metrics)
+function createCollaborativeRecommendationCard(rec, index) {
+    const card = document.createElement('div');
+    card.className = 'recommendation-card cf';
+    card.style.animationDelay = `${index * 0.05}s`;
+
+    card.innerHTML = `
+        <div class="movie-poster">🎞️</div>
+        <h3 class="rec-title">${escapeHtml(rec.title)}</h3>
+        <p class="rec-genre">${escapeHtml(rec.genres || "")}</p>
+        <p class="rec-genre">${escapeHtml(rec.year || "")}</p>
+
+
+        <div class="cf-metrics">
+            <div class="metric-line">
+                <span>
+                    <b>${escapeHtml(rec.badge)}</b>
+                </span>
+            </div>
+
+            <div class="cf-reason">
+                ${escapeHtml(rec.reason)}
+            </div>
+        </div>
+    `;
+
+    return card;
 }
 
 // ==============================
@@ -150,37 +267,86 @@ function removeSelectionVisuals(movieId) {
 // ==============================
 function updateSelectedGrid() {
     const selectedGrid = document.getElementById("selectedMoviesGrid");
-    const selectedSection = document.getElementById("selectedSection");
-    
     if (!selectedGrid) return;
 
     selectedGrid.innerHTML = "";
 
-    // Find the full movie objects for the selected IDs
-    // We look in 'allMovies' to ensure we find it even if it's not currently visible in the main random 16 grid
     const selectedMovieObjects = allMovies.filter(m => selectedMovies.includes(m.id));
 
     if (selectedMovieObjects.length === 0) {
         selectedGrid.innerHTML = '<p style="color:#999; font-style:italic;">No movies selected yet.</p>';
         return;
     }
-    
+
     selectedMovieObjects.forEach(movie => {
         const card = createMovieCard(movie);
-        card.classList.add('selected-preview'); // Special style for top section if needed
-        
-        // Add a "Remove" badge or just click to remove
-        const removeBadge = document.createElement("div");
-        removeBadge.innerHTML = "❌";
-        removeBadge.className = "remove-badge";
-        card.appendChild(removeBadge);
 
-        // Clicking here removes it
+        // Restore click to remove movie selection
         card.onclick = () => toggleMovieSelection(movie.id);
+
+        /* ⭐ RATING SECTION */
+        const ratingContainer = document.createElement("div");
+        ratingContainer.className = "rating-stars";
+        ratingContainer.dataset.movieId = movie.id;
+
+        let starsHTML = "";
+        for (let i = 1; i <= 5; i++) {
+            starsHTML += `<span class="star" data-star="${i}">★</span>`;
+        }
+
+        ratingContainer.innerHTML = starsHTML;
+        card.appendChild(ratingContainer);
+
+        /* Prevent card removal if a star is clicked */
+        ratingContainer.addEventListener("click", async (e) => {
+            if (!e.target.classList.contains("star")) return;
+
+            e.stopPropagation(); // ⛔ prevent toggleMovieSelection()
+
+            const rating = Number(e.target.dataset.star);
+            await submitMovieRating(movie.id, rating);
+            highlightStars(ratingContainer, rating);
+        });
 
         selectedGrid.appendChild(card);
     });
 }
+
+
+
+function highlightStars(container, rating) {
+    [...container.querySelectorAll(".star")].forEach(star => {
+        star.style.color = Number(star.dataset.star) <= rating ? "#ffd700" : "#ccc";
+    });
+}
+
+async function submitMovieRating(movieId, rating) {
+    const token = sessionStorage.getItem("accessToken");
+    if (!token) return alert("Session expired. Login again.");
+
+    try {
+        const res = await fetch("/api/movies/rate/", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ movie: movieId, rating })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+            console.error("Rating error:", data);
+            alert("Failed to save rating");
+        } else {
+            console.log("Rating saved:", data);
+        }
+    } catch (err) {
+        console.error("Error rating movie:", err);
+    }
+}
+
+
 
 
 // ==============================
@@ -199,6 +365,17 @@ async function getRecommendations() {
     }
 
     const algorithm = (document.getElementById('algorithmSelect') || {}).value || 'content_based';
+
+    // === NEW LOGIC: Collaborative must have rated selected movie ===
+    if (algorithm === "collaborative") {
+        const hasRated = await checkSelectedMovieRatings();
+
+        if (!hasRated) {
+            showRatingRequirementModal();
+            return; // ❗ Stop CF call
+        }
+    }
+
     const payload = {
         selected_ids: selectedMovies,
         top_k: 16
@@ -216,7 +393,7 @@ async function getRecommendations() {
             recommendations = await fetchCollaborativeRecommendations(payload, accessToken);
         }
 
-        displayRecommendations(recommendations);
+        displayRecommendations(recommendations, algorithm);
     } catch (err) {
         console.error("Recommendation error:", err);
         showAlert("Recommendation failed: " + (err.message || err), "error");
@@ -250,42 +427,61 @@ async function fetchCollaborativeRecommendations(payload, accessToken) {
         body: JSON.stringify(payload)
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Failed to fetch collaborative");
+    if (!res.ok) {
+    return {
+        success: false,
+        message: data.message || "Collaborative filtering is unavailable",
+        reason: data.error_type || null,
+        required: data.required_ratings || null,
+        current: data.user_current_ratings || null
+    };
+}
+
     return data;
 }
 
-function displayRecommendations(recommendations) {
+function displayRecommendations(recommendations, algorithm = 'content_based') {
     const section = document.getElementById('recommendationsSection');
     const grid = document.getElementById('recommendationsGrid');
     if (!section || !grid) return;
 
-    grid.innerHTML = '';
-    
-    // Sort by score if available
-    recommendations.forEach((rec, index) => {
-        const card = document.createElement('div');
-        card.className = 'recommendation-card';
-        card.style.animationDelay = `${index * 0.05}s`;
-        
-        // Generate stars based on score (assuming score 0-1 or 0-5)
-        // Adjust score logic based on your backend. Example: rec.score * 5
-        const scoreDisplay = rec.score ? `match: ${(rec.score * 100).toFixed(0)}%` : '';
+    // In case backend wraps data: { recommendations: [...] }
+    const recList = Array.isArray(recommendations.recommendations)
+        ? recommendations.recommendations
+        : recommendations;
 
-        card.innerHTML = `
-            <div style="font-size: 2rem; margin-bottom: 10px;">🌟</div>
-            <h3 class="rec-title">${escapeHtml(rec.title)}</h3>
-            <p class="rec-genre">${escapeHtml(rec.genres)}</p>
-            <p class="rec-score">${scoreDisplay}</p>
-        `;
+    grid.innerHTML = '';
+
+    recList.forEach((rec, index) => {
+        let card;
+        if (algorithm === 'collaborative') {
+            card = createCollaborativeRecommendationCard(rec, index);
+        } else {
+            card = createContentBasedRecommendationCard(rec, index);
+        }
         grid.appendChild(card);
     });
+
+    if (recommendations && recommendations.success === false) {
+        MovieApp.showAlert(
+            recommendations.message + 
+            (recommendations.current !== null 
+                ? ` (You have ${recommendations.current}, need ${recommendations.required})`
+                : ""
+            ), 
+            "error"
+        );
+        return;
+    }
+
 
     section.classList.remove('hidden');
     section.scrollIntoView({ behavior: 'smooth' });
 
     const recCount = document.getElementById('recommendationCount');
-    if (recCount) recCount.textContent = recommendations.length;
+    if (recCount) recCount.textContent = recList.length;
 }
+
 
 // ==============================
 // SEARCH & UTILS
@@ -354,12 +550,8 @@ function showAlert(message, type = 'info') {
 
 // --- FIXED LOGOUT FUNCTION ---
 function logoutUser() {
-    // 1. Clear CLIENT-SIDE session
     sessionStorage.removeItem("accessToken");
     sessionStorage.removeItem("currentUser");
-
-    // 2. Clear SERVER-SIDE session and redirect
-    // This hits the Django view which performs logout(request) and redirects to login-page
     window.location.href = "/api/accounts/logout/";
 }
 
@@ -399,3 +591,55 @@ window.MovieApp = {
 window.selectMovie = toggleMovieSelection;
 // Ensure global scope access for the HTML button onclick="logoutUser()"
 window.logoutUser = logoutUser;
+
+// ==========================================================
+// Add modal styling directly (optional but convenient)
+// ==========================================================
+const style = document.createElement("style");
+style.textContent = `
+.rating-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(3px);
+    z-index: 2000;
+    animation: fadeInModal .25s ease-out;
+}
+
+.rating-modal-box {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    z-index: 3000;
+    width: 420px;
+    padding: 28px;
+    border-radius: 14px;
+    text-align: center;
+    box-shadow: 0px 8px 24px rgba(0,0,0,.28);
+    animation: slideUpModal .25s ease-out;
+}
+
+.rating-modal-box h2 {
+    margin-bottom: 12px;
+    color: #333;
+}
+
+.rating-modal-box p {
+    margin-bottom: 22px;
+    font-size: 0.95rem;
+    color: #666;
+    line-height: 1.5;
+}
+
+@keyframes fadeInModal {
+    0% { opacity: 0 }
+    100% { opacity: 1 }
+}
+@keyframes slideUpModal {
+    0% { transform: translate(-50%, -40%); opacity: 0 }
+    100% { transform: translate(-50%, -50%); opacity: 1 }
+}
+`;
+document.head.appendChild(style);

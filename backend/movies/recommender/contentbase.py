@@ -44,14 +44,17 @@ def _build_and_persist():
         titles = []
         genres = []
         movie_ids = []
+        years = []
         tags_field = []  # if you have extra tags in Movie model
         # Build metadata string for each movie
         for m in qs:
             movie_ids.append(int(m.id))
             titles.append(str(m.title))
             genres.append(str(m.genres or ""))
+            years.append(int(m.year) if getattr(m, "year", None) else None)
             # if you have a tags column in model, include it; else keep empty
             tags_field.append(str(getattr(m, "tag", "") or ""))
+        #years = [int(m.year) if getattr(m, "year", None) else None for m in qs]
 
         # Create metadata: title + genres (pipe separated replaced) + tags
         metadata = []
@@ -81,6 +84,7 @@ def _build_and_persist():
             "movie_ids": movie_ids,      # list index -> Movie.id
             "titles": titles,            # parallel list
             "genres": genres,
+            "year": years,
         }
         with open(METADATA_PKL, "wb") as f:
             pickle.dump(metadata_obj, f, protocol=pickle.HIGHEST_PROTOCOL)
@@ -236,6 +240,8 @@ def recommend_content_based(selected_ids: List[Union[int, str]],
             continue
         movie_id = metadata["movie_ids"][int(idx)]
         title = metadata["titles"][int(idx)]
+        year = metadata["year"][int(idx)]
+        print(year)
         genre = metadata["genres"][int(idx)] if "genres" in metadata else ""
         # Convert NN cosine distance to similarity score: similarity = 1 - distance
         # (NearestNeighbors with metric "cosine" returns distances in [0, 2] but typically [0,1])
@@ -243,6 +249,7 @@ def recommend_content_based(selected_ids: List[Union[int, str]],
         recommendations.append({
             "id": int(movie_id),
             "title": title,
+            "year": year,
             "genres": genre,
             "score": round(score, 4)
         })
